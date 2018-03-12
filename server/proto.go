@@ -15,6 +15,7 @@ const (
 
 var (
 	errorRequest = errors.New("error request")
+	errCommand   = errors.New("unknown command")
 )
 
 type Proto interface {
@@ -29,6 +30,9 @@ type Message struct {
 	CMD           byte
 	ContentLength uint32
 	Data          []byte
+}
+type Handler interface {
+	Handle(message *Message) error
 }
 
 func (msg *Message) Bytes() []byte {
@@ -56,6 +60,18 @@ func (msg *Message) Bytes() []byte {
 }
 
 type VBoardProto struct {
+	handlers map[byte]Handler
+}
+
+func NewProto() Proto {
+	proto := &VBoardProto{
+		handlers: make(map[byte]Handler),
+	}
+	proto.RegisterHandler(0, &KBoardHandler{})
+	return proto
+}
+func (vp *VBoardProto) RegisterHandler(cmd byte, h Handler) {
+	vp.handlers[cmd] = h
 }
 
 func (vp *VBoardProto) Serve(session *Session) error {
@@ -67,6 +83,11 @@ func (vp *VBoardProto) Serve(session *Session) error {
 		}
 		mgs.Addr = session.RemoteAddr()
 		log.Println("receive mssage", mgs)
+		if h, ok := vp.handlers[mgs.CMD]; ok {
+			h.Handle(mgs)
+		} else {
+			return errCommand
+		}
 	}
 	return nil
 }
@@ -97,13 +118,14 @@ func (vp *VBoardProto) readRequest(reader io.Reader) (*Message, error) {
 		return nil, errorRequest
 	}
 	msg := &Message{
-		Addr:      nil,
-		HeartBeat: hb,
-		CMD:       header[3],
-		IsFIN:     fin,
-		Echo:      echo,
-		IsData:    isData,
-		Data:      data[:contentLength-2],
+		Addr:          nil,
+		HeartBeat:     hb,
+		CMD:           header[3],
+		IsFIN:         fin,
+		Echo:          echo,
+		IsData:        isData,
+		ContentLength: contentLength - 2,
+		Data:          data[:contentLength-2],
 	}
 	return msg, nil
 }

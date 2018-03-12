@@ -16,5 +16,5 @@ func main() {
 		log.Fatal(err)
 	}
 	s := server.NewSession(conn)
-	s.Serve(&server.VBoardProto{})
+	s.Serve(server.NewProto())
 }

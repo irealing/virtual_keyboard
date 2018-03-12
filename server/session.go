@@ -38,8 +38,8 @@ func (session *Session) RemoteAddr() net.Addr {
 }
 
 func (session *Session) Serve(proto Proto) {
+	defer session.Close()
 	proto.Serve(session)
-	session.Close()
 }
 
 func (session *Session) Close() {
