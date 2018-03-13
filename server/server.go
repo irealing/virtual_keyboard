@@ -1,8 +1,8 @@
 package server
 
 import (
-	"net"
 	"github.com/qiniu/log"
+	"net"
 )
 
 const tcp = "tcp"
@@ -35,18 +35,20 @@ func (server *Server) Shutdown() {
 }
 
 func (server *Server) Run() error {
-	log.Info("start server ", server.Addr().String())
+	log.Info("start server", server.Addr().String())
 	for {
 		conn, err := server.listener.Accept()
 		if err != nil {
 			return err
 		}
 		session := NewSession(conn)
+		log.Info("new session", session.ID())
 		server.manager.PutSession(session)
 		go func() {
 			err := session.Serve(server.proto)
 			if err != nil {
-				log.Warn("session error ", err)
+				log.Warn("session error:", err)
+				log.Info("close and remove session", session.ID())
 				session.Close()
 				server.manager.DelSession(session)
 			}
@@ -56,4 +58,7 @@ func (server *Server) Run() error {
 
 func (server *Server) GetSession(sessionID uint64) *Session {
 	return server.manager.GetSession(sessionID)
+}
+func (server *Server) ClientNum() uint64 {
+	return server.manager.SessionNum()
 }

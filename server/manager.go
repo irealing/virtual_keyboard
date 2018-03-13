@@ -1,6 +1,7 @@
 package server
 
 import (
+	"github.com/qiniu/log"
 	"sync"
 )
 
@@ -10,6 +11,7 @@ type Manager struct {
 	closeOnce sync.Once
 	closeWait sync.WaitGroup
 	closed    bool
+	clients   uint64
 }
 
 func NewManager() *Manager {
@@ -40,6 +42,7 @@ func (m *Manager) PutSession(session *Session) {
 	}
 	m.sessions[session.ID()] = session
 	m.closeWait.Add(1)
+	m.clients += 1
 }
 
 func (m *Manager) GetSession(sessionID uint64) *Session {
@@ -51,6 +54,11 @@ func (m *Manager) GetSession(sessionID uint64) *Session {
 func (m *Manager) DelSession(session *Session) {
 	m.sLock.Lock()
 	defer m.sLock.Unlock()
+	log.Debug("remove session ", session.ID())
 	delete(m.sessions, session.ID())
 	m.closeWait.Done()
+	m.clients -= 1
+}
+func (m *Manager) SessionNum() uint64 {
+	return m.clients
 }
