@@ -1,36 +1,64 @@
 package server
 
 import (
-	"net"
 	"bytes"
 	"encoding/binary"
-	"io"
 	"errors"
-	"log"
+	"io"
+	"net"
+
+	"github.com/qiniu/log"
 )
 
 const (
 	magicNumber uint16 = 0xffff
 )
 
+type MsgOption byte
+
 var (
 	errorRequest = errors.New("error request")
 	errCommand   = errors.New("unknown command")
 )
 
+const (
+	HeartBeat MsgOption = 1 << 7
+	FinMsg    MsgOption = 1 << 6
+	EchoMsg   MsgOption = 1 << 5
+	DataMsg   MsgOption = 1 << 4
+)
+
+func (mo MsgOption) HeatBeat() bool {
+	return mo&HeartBeat > 0
+}
+
+func (mo MsgOption) IsFIN() bool {
+	return mo&FinMsg > 0
+}
+
+func (mo MsgOption) IsEcho() bool {
+	return mo&EchoMsg > 0
+}
+
+func (mo MsgOption) IsData() bool {
+	return mo&DataMsg > 0
+}
+func (mo MsgOption) Value() byte {
+	return byte(mo)
+}
+
 type Proto interface {
 	Serve(session *Session) error
 }
+
 type Message struct {
 	Addr          net.Addr
-	HeartBeat     bool
-	IsFIN         bool
-	Echo          bool
-	IsData        bool
+	Option        MsgOption
 	CMD           byte
 	ContentLength uint32
 	Data          []byte
 }
+
 type Handler interface {
 	Handle(message *Message) error
 }
@@ -38,18 +66,7 @@ type Handler interface {
 func (msg *Message) Bytes() []byte {
 	header := make([]byte, 8)
 	binary.BigEndian.PutUint16(header, magicNumber)
-	if msg.HeartBeat {
-		header[2] |= 0x80
-	}
-	if msg.IsFIN {
-		header[2] |= 0x40
-	}
-	if msg.Echo {
-		header[2] |= 0x20
-	}
-	if msg.IsData {
-		header[2] |= 0x10
-	}
+	header[2] = msg.Option.Value()
 	header[4] = msg.CMD
 	binary.BigEndian.PutUint32(header[4:], msg.ContentLength)
 	buf := bytes.Buffer{}
@@ -82,15 +99,19 @@ func (vp *VBoardProto) Serve(session *Session) error {
 			return err
 		}
 		mgs.Addr = session.RemoteAddr()
-		log.Println("receive mssage", mgs)
-		if h, ok := vp.handlers[mgs.CMD]; ok {
-			h.Handle(mgs)
-		} else {
+		var h Handler = nil
+		var ok bool
+		if h, ok = vp.handlers[mgs.CMD]; !ok {
 			return errCommand
+		}
+		err = h.Handle(mgs)
+		if err != nil {
+			return err
 		}
 	}
 	return nil
 }
+
 func (vp *VBoardProto) readRequest(reader io.Reader) (*Message, error) {
 	header := make([]byte, 8)
 	n, err := reader.Read(header)
@@ -101,12 +122,10 @@ func (vp *VBoardProto) readRequest(reader io.Reader) (*Message, error) {
 	if binary.BigEndian.Uint16(header[0:2]) != magicNumber {
 		return nil, errorRequest
 	}
+	opt := MsgOption(header[2])
 	contentLength := binary.BigEndian.Uint32(header[4:])
-	hb := header[2]&0x80 > 0
-	fin := header[2]&0x40 > 0
-	echo := header[2]&0x20 > 0
-	isData := header[2]&0x10 > 0
-	if (fin || hb) && contentLength > 0 {
+	if (opt.IsFIN() || opt.HeatBeat()) && contentLength > 0 {
+		log.Printf("%b", opt)
 		return nil, errorRequest
 	}
 	contentLength += 2
@@ -119,11 +138,8 @@ func (vp *VBoardProto) readRequest(reader io.Reader) (*Message, error) {
 	}
 	msg := &Message{
 		Addr:          nil,
-		HeartBeat:     hb,
+		Option:        opt,
 		CMD:           header[3],
-		IsFIN:         fin,
-		Echo:          echo,
-		IsData:        isData,
 		ContentLength: contentLength - 2,
 		Data:          data[:contentLength-2],
 	}

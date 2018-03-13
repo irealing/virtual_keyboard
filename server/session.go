@@ -1,10 +1,10 @@
 package server
 
 import (
+	"io"
+	"net"
 	"sync"
 	"sync/atomic"
-	"net"
-	"io"
 )
 
 var globalSessionId uint64

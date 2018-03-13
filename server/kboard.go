@@ -2,13 +2,14 @@ package server
 
 import (
 	"virtual_keyboard/keyboard"
+
 	"github.com/qiniu/log"
 )
 
 type KBoardHandler struct{}
 
 func (kbh *KBoardHandler) Handle(message *Message) error {
-	if !message.IsData || len(message.Data) != 2 {
+	if !message.Option.IsData() || len(message.Data) != 2 {
 		return errorRequest
 	}
 	log.Info("receive keyboard event ", message.Data)

@@ -1,8 +1,8 @@
 package main
 
 import (
-	"net"
 	"log"
+	"net"
 	"virtual_keyboard/server"
 )
 
