@@ -15,7 +15,7 @@ type Session struct {
 	wMutex    sync.RWMutex
 	closeFlag int32
 	conn      net.Conn
-	closeOne  sync.Once
+	closeOnce sync.Once
 }
 
 func NewSession(conn net.Conn) *Session {
@@ -37,13 +37,13 @@ func (session *Session) RemoteAddr() net.Addr {
 	return session.conn.RemoteAddr()
 }
 
-func (session *Session) Serve(proto Proto) {
-	defer session.Close()
-	proto.Serve(session)
+func (session *Session) Serve(proto Proto) error {
+	//defer session.Close()
+	return proto.Serve(session)
 }
 
 func (session *Session) Close() {
-	session.closeOne.Do(session.close)
+	session.closeOnce.Do(session.close)
 }
 
 func (session *Session) close() {
