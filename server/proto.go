@@ -27,7 +27,7 @@ const (
 	FinMsg     MsgOption = 1 << 6
 	EchoMsg    MsgOption = 1 << 5
 	DataMsg    MsgOption = 1 << 4
-	SuccessMsg MsgOption = 1 << 2
+	SuccessMsg MsgOption = 1
 )
 
 func (mo MsgOption) HeatBeat() bool {
@@ -112,6 +112,7 @@ func (vp *VBoardProto) Serve(session *Session) error {
 func (vp *VBoardProto) handleReq(msg *Message, session *Session) (err error) {
 	switch msg.Option {
 	case HeartBeat, EchoMsg:
+		msg.Option |= SuccessMsg
 		_, err = session.Write(msg.Bytes())
 	case FinMsg:
 		err = errFin
