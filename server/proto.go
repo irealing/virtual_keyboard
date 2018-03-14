@@ -6,12 +6,14 @@ import (
 	"errors"
 	"io"
 	"net"
+	"time"
 
 	"github.com/qiniu/log"
 )
 
 const (
 	magicNumber uint16 = 0xffff
+	readTimeout        = 10 * time.Second
 )
 
 type MsgOption byte
@@ -20,6 +22,7 @@ var (
 	errorRequest = errors.New("error request")
 	errCommand   = errors.New("unknown command")
 	errFin       = errors.New("close connection")
+	errTimeout   = errors.New("read timeout")
 )
 
 const (
@@ -93,20 +96,40 @@ func (vp *VBoardProto) RegisterHandler(cmd byte, h Handler) {
 	vp.handlers[cmd] = h
 }
 
-func (vp *VBoardProto) Serve(session *Session) error {
+func (vp *VBoardProto) Serve(session *Session) (err error) {
+	var rc = make(chan *Message)
+	defer close(rc)
+	var msg *Message
+	t := time.NewTimer(readTimeout)
+	defer t.Stop()
 	for {
-		mgs, err := vp.readRequest(session)
-		if err != nil {
-			log.Println(err)
-			return err
+		go vp.receive(session, rc)
+		t.Reset(readTimeout)
+		select {
+		case msg = <-rc:
+			if msg == nil {
+				err = errorRequest
+			}
+		case <-t.C:
+			msg = nil
+			err = errTimeout
 		}
-		mgs.Addr = session.RemoteAddr()
-		err = vp.handleReq(mgs, session)
+		if msg != nil {
+			msg.Addr = session.RemoteAddr()
+			err = vp.handleReq(msg, session)
+		}
 		if err != nil {
-			return err
+			break
 		}
 	}
-	return nil
+	return err
+}
+
+func (vp *VBoardProto) receive(session *Session, c chan<- *Message) {
+	msg, _ := vp.readRequest(session)
+	if msg != nil {
+		c <- msg
+	}
 }
 
 func (vp *VBoardProto) handleReq(msg *Message, session *Session) (err error) {
@@ -114,6 +137,7 @@ func (vp *VBoardProto) handleReq(msg *Message, session *Session) (err error) {
 	case HeartBeat, EchoMsg:
 		msg.Option |= SuccessMsg
 		_, err = session.Write(msg.Bytes())
+		log.Debug("receive message", msg.Option)
 	case FinMsg:
 		err = errFin
 		log.Debug("receive fin message", session.ID())
@@ -133,7 +157,7 @@ func (vp *VBoardProto) readRequest(reader io.Reader) (*Message, error) {
 	header := make([]byte, 8)
 	n, err := reader.Read(header)
 	if err != nil || n != 8 {
-		log.Println(err)
+		log.Warn(err)
 		return nil, errorRequest
 	}
 	if binary.BigEndian.Uint16(header[0:2]) != magicNumber {

@@ -1,10 +1,10 @@
 package server
 
 import (
+	"io"
 	"virtual_keyboard/keyboard"
 
 	"github.com/qiniu/log"
-	"io"
 )
 
 type KBoardHandler struct{}
