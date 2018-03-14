@@ -4,11 +4,12 @@ import (
 	"virtual_keyboard/keyboard"
 
 	"github.com/qiniu/log"
+	"io"
 )
 
 type KBoardHandler struct{}
 
-func (kbh *KBoardHandler) Handle(message *Message) error {
+func (kbh *KBoardHandler) Handle(message *Message, writer io.Writer) error {
 	if !message.Option.Data() || len(message.Data) != 2 {
 		return errorRequest
 	}
@@ -16,5 +17,7 @@ func (kbh *KBoardHandler) Handle(message *Message) error {
 	data := message.Data
 	up := data[1] > 0
 	keyboard.KeyEvent(data[0], up)
-	return nil
+	message.Option |= SuccessMsg
+	_, err := writer.Write(message.Bytes())
+	return err
 }

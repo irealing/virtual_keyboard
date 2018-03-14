@@ -23,10 +23,11 @@ var (
 )
 
 const (
-	HeartBeat MsgOption = 1 << 7
-	FinMsg    MsgOption = 1 << 6
-	EchoMsg   MsgOption = 1 << 5
-	DataMsg   MsgOption = 1 << 4
+	HeartBeat  MsgOption = 1 << 7
+	FinMsg     MsgOption = 1 << 6
+	EchoMsg    MsgOption = 1 << 5
+	DataMsg    MsgOption = 1 << 4
+	SuccessMsg MsgOption = 1 << 2
 )
 
 func (mo MsgOption) HeatBeat() bool {
@@ -61,7 +62,7 @@ type Message struct {
 }
 
 type Handler interface {
-	Handle(message *Message) error
+	Handle(message *Message, writer io.Writer) error
 }
 
 func (msg *Message) Bytes() []byte {
@@ -114,10 +115,10 @@ func (vp *VBoardProto) handleReq(msg *Message, session *Session) (err error) {
 		_, err = session.Write(msg.Bytes())
 	case FinMsg:
 		err = errFin
-		log.Info("receive fin message", session.ID())
+		log.Debug("receive fin message", session.ID())
 	case DataMsg:
 		if h, ok := vp.handlers[msg.CMD]; ok {
-			err = h.Handle(msg)
+			err = h.Handle(msg, session)
 		} else {
 			err = errCommand
 		}
