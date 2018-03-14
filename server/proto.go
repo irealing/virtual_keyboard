@@ -102,8 +102,8 @@ func (vp *VBoardProto) Serve(session *Session) (err error) {
 	var msg *Message
 	t := time.NewTimer(readTimeout)
 	defer t.Stop()
+	go vp.receive(session, rc)
 	for {
-		go vp.receive(session, rc)
 		t.Reset(readTimeout)
 		select {
 		case msg = <-rc:
@@ -126,8 +126,16 @@ func (vp *VBoardProto) Serve(session *Session) (err error) {
 }
 
 func (vp *VBoardProto) receive(session *Session, c chan<- *Message) {
-	msg, _ := vp.readRequest(session)
-	if msg != nil {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Warn("messages read error", err)
+		}
+	}()
+	for {
+		msg, _ := vp.readRequest(session)
+		if msg != nil {
+			msg.Addr = session.RemoteAddr()
+		}
 		c <- msg
 	}
 }
