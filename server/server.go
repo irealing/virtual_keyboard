@@ -30,8 +30,9 @@ func (server *Server) Addr() net.Addr {
 	return server.listener.Addr()
 }
 func (server *Server) Shutdown() {
-	server.listener.Close()
+	log.Info("shutdown server")
 	server.manager.Shutdown()
+	server.listener.Close()
 }
 
 func (server *Server) Run() error {

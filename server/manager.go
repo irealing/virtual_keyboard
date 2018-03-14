@@ -28,7 +28,9 @@ func (m *Manager) closeAll() {
 	m.closed = true
 	for _, session := range m.sessions {
 		session.Close()
-		m.DelSession(session)
+		delete(m.sessions, session.ID())
+		m.closeWait.Done()
+		m.clients -= 1
 	}
 	m.closeWait.Wait()
 }
@@ -46,7 +48,7 @@ func (m *Manager) PutSession(session *Session) {
 }
 
 func (m *Manager) GetSession(sessionID uint64) *Session {
-	m.sLock.Lock()
+	m.sLock.RLock()
 	defer m.sLock.RUnlock()
 	s, _ := m.sessions[sessionID]
 	return s
