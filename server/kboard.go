@@ -9,7 +9,7 @@ import (
 type KBoardHandler struct{}
 
 func (kbh *KBoardHandler) Handle(message *Message) error {
-	if !message.Option.IsData() || len(message.Data) != 2 {
+	if !message.Option.Data() || len(message.Data) != 2 {
 		return errorRequest
 	}
 	log.Info("receive keyboard event ", message.Data)

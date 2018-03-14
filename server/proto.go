@@ -19,6 +19,7 @@ type MsgOption byte
 var (
 	errorRequest = errors.New("error request")
 	errCommand   = errors.New("unknown command")
+	errFin       = errors.New("close connection")
 )
 
 const (
@@ -32,15 +33,15 @@ func (mo MsgOption) HeatBeat() bool {
 	return mo&HeartBeat > 0
 }
 
-func (mo MsgOption) IsFIN() bool {
+func (mo MsgOption) FIN() bool {
 	return mo&FinMsg > 0
 }
 
-func (mo MsgOption) IsEcho() bool {
+func (mo MsgOption) Echo() bool {
 	return mo&EchoMsg > 0
 }
 
-func (mo MsgOption) IsData() bool {
+func (mo MsgOption) Data() bool {
 	return mo&DataMsg > 0
 }
 func (mo MsgOption) Value() byte {
@@ -99,17 +100,31 @@ func (vp *VBoardProto) Serve(session *Session) error {
 			return err
 		}
 		mgs.Addr = session.RemoteAddr()
-		var h Handler = nil
-		var ok bool
-		if h, ok = vp.handlers[mgs.CMD]; !ok {
-			return errCommand
-		}
-		err = h.Handle(mgs)
+		err = vp.handleReq(mgs, session)
 		if err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (vp *VBoardProto) handleReq(msg *Message, session *Session) (err error) {
+	switch msg.Option {
+	case HeartBeat, EchoMsg:
+		_, err = session.Write(msg.Bytes())
+	case FinMsg:
+		err = errFin
+		log.Info("receive fin message", session.ID())
+	case DataMsg:
+		if h, ok := vp.handlers[msg.CMD]; ok {
+			err = h.Handle(msg)
+		} else {
+			err = errCommand
+		}
+	default:
+		err = errorRequest
+	}
+	return
 }
 
 func (vp *VBoardProto) readRequest(reader io.Reader) (*Message, error) {
@@ -124,7 +139,7 @@ func (vp *VBoardProto) readRequest(reader io.Reader) (*Message, error) {
 	}
 	opt := MsgOption(header[2])
 	contentLength := binary.BigEndian.Uint32(header[4:])
-	if (opt.IsFIN() || opt.HeatBeat()) && contentLength > 0 {
+	if (opt.FIN() || opt.HeatBeat()) && contentLength > 0 {
 		log.Printf("%b", opt)
 		return nil, errorRequest
 	}

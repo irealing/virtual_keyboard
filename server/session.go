@@ -58,8 +58,13 @@ func (session *Session) Read(buf []byte) (int, error) {
 	return session.conn.Read(buf)
 }
 
-func (session *Session) Write(reader io.Reader) (int64, error) {
+func (session *Session) Copy(reader io.Reader) (int64, error) {
 	session.wMutex.Lock()
 	defer session.wMutex.Unlock()
 	return io.Copy(session.conn, reader)
+}
+func (session *Session) Write(buf []byte) (int, error) {
+	session.wMutex.Lock()
+	defer session.wMutex.Unlock()
+	return session.conn.Write(buf)
 }
