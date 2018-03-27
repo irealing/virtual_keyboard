@@ -1,8 +1,9 @@
 package server
 
 import (
-	"github.com/qiniu/log"
 	"net"
+
+	"github.com/qiniu/log"
 )
 
 const tcp = "tcp"
@@ -45,6 +46,7 @@ func (server *Server) Run() error {
 		session := NewSession(conn)
 		log.Info("new session", session.ID())
 		server.manager.PutSession(session)
+		log.Info("client num", server.ClientNum())
 		go func() {
 			err := session.Serve(server.proto)
 			if err != nil {

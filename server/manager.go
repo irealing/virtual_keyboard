@@ -1,8 +1,9 @@
 package server
 
 import (
-	"github.com/qiniu/log"
 	"sync"
+
+	"github.com/qiniu/log"
 )
 
 type Manager struct {
@@ -23,6 +24,7 @@ func (m *Manager) Shutdown() {
 }
 
 func (m *Manager) closeAll() {
+	log.Info("try to release all connections")
 	m.sLock.Lock()
 	defer m.sLock.Unlock()
 	m.closed = true

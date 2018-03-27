@@ -11,7 +11,7 @@ type KBoardHandler struct{}
 
 func (kbh *KBoardHandler) Handle(message *Message, writer io.Writer) error {
 	if !message.Option.Data() || len(message.Data) != 2 {
-		return errorRequest
+		return errRequest
 	}
 	log.Info("receive keyboard event ", message.Data)
 	data := message.Data

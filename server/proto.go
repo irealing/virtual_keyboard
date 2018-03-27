@@ -19,10 +19,10 @@ const (
 type MsgOption byte
 
 var (
-	errorRequest = errors.New("error request")
-	errCommand   = errors.New("unknown command")
-	errFin       = errors.New("close connection")
-	errTimeout   = errors.New("read timeout")
+	errRequest = errors.New("error request")
+	errCommand = errors.New("unknown command")
+	errFin     = errors.New("close connection")
+	errTimeout = errors.New("read timeout")
 )
 
 const (
@@ -108,7 +108,7 @@ func (vp *VBoardProto) Serve(session *Session) (err error) {
 		select {
 		case msg = <-rc:
 			if msg == nil {
-				err = errorRequest
+				err = errRequest
 			}
 		case <-t.C:
 			msg = nil
@@ -132,9 +132,15 @@ func (vp *VBoardProto) receive(session *Session, c chan<- *Message) {
 		}
 	}()
 	for {
+		if session.IsClosed() {
+			break
+		}
 		msg, _ := vp.readRequest(session)
 		if msg != nil {
 			msg.Addr = session.RemoteAddr()
+		}
+		if session.IsClosed() {
+			break
 		}
 		c <- msg
 	}
@@ -156,7 +162,7 @@ func (vp *VBoardProto) handleReq(msg *Message, session *Session) (err error) {
 			err = errCommand
 		}
 	default:
-		err = errorRequest
+		err = errRequest
 	}
 	return
 }
@@ -165,25 +171,24 @@ func (vp *VBoardProto) readRequest(reader io.Reader) (*Message, error) {
 	header := make([]byte, 8)
 	n, err := reader.Read(header)
 	if err != nil || n != 8 {
-		log.Warn(err)
-		return nil, errorRequest
+		return nil, errRequest
 	}
 	if binary.BigEndian.Uint16(header[0:2]) != magicNumber {
-		return nil, errorRequest
+		return nil, errRequest
 	}
 	opt := MsgOption(header[2])
 	contentLength := binary.BigEndian.Uint32(header[4:])
 	if (opt.FIN() || opt.HeatBeat()) && contentLength > 0 {
 		log.Printf("%b", opt)
-		return nil, errorRequest
+		return nil, errRequest
 	}
 	contentLength += 2
 	data := make([]byte, contentLength)
 	if n, err = reader.Read(data); err != nil || uint32(n) != contentLength {
-		return nil, errorRequest
+		return nil, errRequest
 	}
 	if binary.BigEndian.Uint16(data[contentLength-2:]) != magicNumber {
-		return nil, errorRequest
+		return nil, errRequest
 	}
 	msg := &Message{
 		Addr:          nil,
